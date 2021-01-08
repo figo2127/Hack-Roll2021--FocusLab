@@ -5,6 +5,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.DateFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -38,9 +39,12 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.media.FaceDetector;
+import android.media.MediaPlayer;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
@@ -60,6 +64,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.VideoView;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -99,9 +104,12 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
     private long mTimeLeftInMillis;
     private long mEndTime;
 
+    private VideoView mVideoView;
 
-    SQLiteOpenHelper openHelper;
-    SQLiteDatabase db;
+
+    //    SQLiteOpenHelper openHelper;
+//    SQLiteDatabase db;
+    DatabaseHelper DB;
 
 
     // to insert data: Steps below
@@ -117,8 +125,22 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        mVideoView = (VideoView) findViewById(R.id.bgVideoView);
+
+        Uri uri = Uri.parse("android.resource://"+getPackageName()+"/"+R.raw.study);
+
+        mVideoView.setVideoURI(uri);
+        mVideoView.start();
+
+        mVideoView.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+            @Override
+            public void onPrepared(MediaPlayer mediaPlayer) {
+                mediaPlayer.setLooping(true);
+            }
+        });
+
         //Setup DB
-        openHelper = new DatabaseHelper(this);
+        DB = new DatabaseHelper(this);
 
         this.getSupportActionBar().hide();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -175,6 +197,25 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
                 dailyDuration += timeInterval;
                 Log.e(null, String.format("Session duration: %s", dailyDuration));
                 saveDuration();
+
+                Date date = new Date();
+                DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+                String sdate = df.format(date);
+
+                try {
+                    Date date2=df.parse(sdate);
+                    Log.e(null, String.format("%s", date2.toString() instanceof String));
+                    Log.e(null, String.format("%s", Long.toString(dailyDuration) instanceof String));
+                    Boolean checkInsertData =  DB.insertUserData(date2.toString(), Long.toString(dailyDuration));
+                    if(checkInsertData == true) {
+                        Toast.makeText(MainActivity.this, "New Entry Inserted", Toast.LENGTH_SHORT).show();
+                    } else
+                        Toast.makeText(MainActivity.this, "New Entry Not Inserted", Toast.LENGTH_SHORT).show();
+
+                } catch (ParseException e) {
+                    e.printStackTrace();
+                }
+
             }
         });
 
@@ -201,56 +242,68 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
     }
 
     //MYSQL : START
-    public void insertData(Date date, Float TimeFocused) {
-        ContentValues contentValues = new ContentValues();
-        contentValues.put(DatabaseHelper.COL0, DateToDays(date));
-        contentValues.put(DatabaseHelper.COL1, TimeFocused);
-        long id = db.insert(DatabaseHelper.TABLE_NAME, null, contentValues);
-    }
-
-    public boolean deleteData(Date date) {
-        DateFormat dateFormat = new SimpleDateFormat("yyyy-mm-dd hh:mm:ss");
-        String strDate = dateFormat.format(date);
-        return db.delete(DatabaseHelper.TABLE_NAME, DatabaseHelper.COL0 + "=?", new String[]{strDate}) > 0;
-        //returns true if deletion successful
-    }
-
-    public boolean updateData(Date date, Float TimeFocused) {
-        ContentValues contentValues = new ContentValues();
-        contentValues.put(DatabaseHelper.COL0, DateToDays(date));
-        contentValues.put(DatabaseHelper.COL1, TimeFocused);
-        //get the date then convert it to String before u can update/delete
-        DateFormat dateFormat = new SimpleDateFormat("yyyy-mm-dd hh:mm:ss");
-        String strDate = dateFormat.format(date);
-        return db.update(DatabaseHelper.TABLE_NAME, contentValues, DatabaseHelper.COL0 + "=?", new String[]{strDate}) > 0;
-    }
-
-
-        // magic number=
-    // millisec * sec * min * hours
-    // 1000 * 60 * 60 * 24 = 86400000
-    public static final long MAGIC=86400000L;
-
-    public int DateToDays (Date date){
-        //  convert a date to an integer and back again
-        long currentTime=date.getTime();
-        currentTime=currentTime/MAGIC;
-        return (int) currentTime;
-    }
-
-    public Date DaysToDate(int days) {
-        //  convert integer back again to a date
-        long currentTime=(long) days*MAGIC;
-        return new Date(currentTime);
-    }
+//    public void insertData(Date date, long TimeFocused) {
+//        ContentValues contentValues = new ContentValues();
+//        contentValues.put(DatabaseHelper.COL0, DateToDays(date));
+//        contentValues.put(DatabaseHelper.COL1, TimeFocused);
+//        long id = db.insert(DatabaseHelper.TABLE_NAME, null, contentValues);
+//        Log.e("return code is : ", String.valueOf(id));
+//    }
+//
+//    public boolean deleteData(Date date) {
+//        DateFormat dateFormat = new SimpleDateFormat("yyyy-mm-dd hh:mm:ss");
+//        String strDate = dateFormat.format(date);
+//        return db.delete(DatabaseHelper.TABLE_NAME, DatabaseHelper.COL0 + "=?", new String[]{strDate}) > 0;
+//        //returns true if deletion successful
+//    }
+//
+//    public long retrieveData(Date id) {
+//
+//        String res = "not found";
+//        String whereclause = "ID=?";
+//        String[] whereargs = new String[]{String.valueOf(id)};
+//        Cursor csr = db.query(DatabaseHelper.TABLE_NAME,null,whereclause,whereargs,null,null,null);
+//        if (csr.moveToFirst()) {
+//            res = csr.getString(csr.getColumnIndex(DatabaseHelper.COL1));
+//        }
+//
+//        if(res == "not found"){
+//            return -1;
+//        }
+//        else{
+//            return Long.parseLong(res);
+//        }
+//    }
+//
+//    public boolean updateData(Date date, Float TimeFocused) {
+//        ContentValues contentValues = new ContentValues();
+//        contentValues.put(DatabaseHelper.COL0, DateToDays(date));
+//        contentValues.put(DatabaseHelper.COL1, TimeFocused);
+//        //get the date then convert it to String before u can update/delete
+//        DateFormat dateFormat = new SimpleDateFormat("yyyy-mm-dd hh:mm:ss");
+//        String strDate = dateFormat.format(date);
+//        return db.update(DatabaseHelper.TABLE_NAME, contentValues, DatabaseHelper.COL0 + "=?", new String[]{strDate}) > 0;
+//    }
+//
+//
+//    // magic number=
+//    // millisec * sec * min * hours
+//    // 1000 * 60 * 60 * 24 = 86400000
+//    public static final long MAGIC=86400000L;
+//
+//    public int DateToDays (Date date){
+//        //  convert a date to an integer and back again
+//        long currentTime=date.getTime();
+//        currentTime=currentTime/MAGIC;
+//        return (int) currentTime;
+//    }
+//
+//    public Date DaysToDate(int days) {
+//        //  convert integer back again to a date
+//        long currentTime=(long) days*MAGIC;
+//        return new Date(currentTime);
+//    }
     //MYSQL : END
-
-
-
-
-
-
-
 
 
     private boolean checkPermission() {
@@ -569,6 +622,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         }
     };
 }
+
 
 
 
